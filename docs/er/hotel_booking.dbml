@@ -1,0 +1,94 @@
+// HotelBooking — ER-модель для dbdiagram.io
+// Вставьте этот код на https://dbdiagram.io, чтобы получить диаграмму (Crow's Foot),
+// экспортировать её в PNG/PDF или сгенерировать SQL.
+// Рабочая схема БД задаётся миграциями Alembic (alembic/versions), этот файл её описывает.
+
+Enum user_role {
+  guest
+  admin    // администратор / ресепшен
+  manager
+}
+
+Enum booking_status {
+  pending      // ожидает подтверждения
+  confirmed    // подтверждена
+  checked_in   // гость заселён
+  checked_out  // гость выехал
+  cancelled    // отменена
+}
+
+Enum room_status {
+  available
+  maintenance  // на ремонте / не продаётся
+}
+
+Enum payment_method {
+  cash
+  card
+  transfer
+}
+
+Table users {
+  id            int           [pk, increment]
+  email         varchar(100)  [not null, unique]
+  password_hash varchar(255)  [not null]
+  full_name     varchar(100)  [not null]
+  phone         varchar(20)
+  role          user_role     [not null, default: 'guest']
+  created_at    timestamptz   [not null, default: `now()`]
+}
+
+Table room_types {
+  id              int           [pk, increment]
+  name            varchar(50)   [not null, unique]  // Стандарт, Люкс...
+  capacity        int           [not null]          // вместимость, чел.
+  price_per_night decimal(10,2) [not null]
+  description     text
+}
+
+Table rooms {
+  id           int         [pk, increment]
+  number       varchar(10) [not null, unique]  // "101", "205А"
+  floor        int         [not null]
+  room_type_id int         [not null, ref: > room_types.id]
+  status       room_status [not null, default: 'available']
+}
+
+Table bookings {
+  id          int            [pk, increment]
+  guest_id    int            [not null, ref: > users.id]
+  check_in    date           [not null]
+  check_out   date           [not null]
+  status      booking_status [not null, default: 'pending']
+  total_price decimal(10,2)  [not null]
+  created_at  timestamptz    [not null, default: `now()`]
+
+  Note: 'CHECK (check_out > check_in); пересечение дат по номеру запрещено (см. booking_rooms)'
+}
+
+// Ассоциативная сущность: разрешает M:N между bookings и rooms.
+// price_per_night — цена на момент брони (осознанная денормализация:
+// тариф в room_types может меняться, бронь должна помнить свою цену).
+Table booking_rooms {
+  id              int           [pk, increment]
+  booking_id      int           [not null, ref: > bookings.id]
+  room_id         int           [not null, ref: > rooms.id]
+  price_per_night decimal(10,2) [not null]
+  // Ниже: копия дат и активности брони, заполняется триггером в БД.
+  // Нужна для exclusion constraint no_overlapping_active_bookings.
+  check_in        date          [not null]
+  check_out       date          [not null]
+  is_active       boolean       [not null, default: true]
+
+  indexes {
+    (booking_id, room_id) [unique]
+  }
+}
+
+Table payments {
+  id         int            [pk, increment]
+  booking_id int            [not null, ref: > bookings.id]
+  amount     decimal(10,2)  [not null]
+  paid_at    timestamptz    [not null, default: `now()`]
+  method     payment_method [not null]
+}
