@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 
-from app.core.errors import BadRequestError, ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.models import RoomType
 from app.repositories.room_type import RoomTypeRepository
+from app.schemas.common import Pagination, Sorting, make_page
 from app.schemas.room_type import RoomTypeCreate, RoomTypeUpdate
 
 
@@ -11,8 +12,11 @@ class RoomTypeService:
         self.db = db
         self.repo = RoomTypeRepository(db)
 
-    def list(self, *, skip: int, limit: int) -> list[RoomType]:
-        return self.repo.list(skip=skip, limit=limit)
+    def get_many(self, page: Pagination, sort: Sorting) -> dict:
+        items, total = self.repo.get_many(
+            offset=page.offset, limit=page.per_page, sort_by=sort.sort_by, sort_order=sort.sort_order
+        )
+        return make_page(items, total, page)
 
     def get(self, room_type_id: int) -> RoomType:
         room_type = self.repo.get(room_type_id)
@@ -47,4 +51,4 @@ class RoomTypeService:
 
     def _ensure_name_free(self, name: str) -> None:
         if self.repo.get_by_name(name) is not None:
-            raise BadRequestError(f"Room type '{name}' already exists")
+            raise ConflictError(f"Room type '{name}' already exists", field="name")

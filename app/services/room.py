@@ -4,6 +4,7 @@ from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models import Room, RoomStatus
 from app.repositories.room import RoomRepository
 from app.repositories.room_type import RoomTypeRepository
+from app.schemas.common import Pagination, Sorting, make_page
 from app.schemas.room import RoomCreate, RoomUpdate
 
 
@@ -13,18 +14,25 @@ class RoomService:
         self.repo = RoomRepository(db)
         self.room_types = RoomTypeRepository(db)
 
-    def list(
+    def get_many(
         self,
+        page: Pagination,
+        sort: Sorting,
         *,
-        skip: int,
-        limit: int,
         room_type_id: int | None = None,
         status: RoomStatus | None = None,
         floor: int | None = None,
-    ) -> list[Room]:
-        return self.repo.list_filtered(
-            skip=skip, limit=limit, room_type_id=room_type_id, status=status, floor=floor
+    ) -> dict:
+        items, total = self.repo.list_filtered(
+            offset=page.offset,
+            limit=page.per_page,
+            sort_by=sort.sort_by,
+            sort_order=sort.sort_order,
+            room_type_id=room_type_id,
+            status=status,
+            floor=floor,
         )
+        return make_page(items, total, page)
 
     def get(self, room_id: int) -> Room:
         room = self.repo.get(room_id)
@@ -64,8 +72,8 @@ class RoomService:
 
     def _ensure_number_free(self, number: str) -> None:
         if self.repo.get_by_number(number) is not None:
-            raise BadRequestError(f"Room number '{number}' already exists")
+            raise ConflictError(f"Room number '{number}' already exists", field="number")
 
     def _ensure_room_type_exists(self, room_type_id: int) -> None:
         if self.room_types.get(room_type_id) is None:
-            raise BadRequestError(f"Room type {room_type_id} does not exist")
+            raise BadRequestError(f"Room type {room_type_id} does not exist", field="room_type_id")

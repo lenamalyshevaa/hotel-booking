@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.deps import PaginationDep
-from app.schemas.common import error_responses
+from app.routers.deps import PaginationDep, SortingDep
+from app.schemas.common import Page, error_responses
 from app.schemas.room_type import RoomTypeCreate, RoomTypeResponse, RoomTypeUpdate
 from app.services.room_type import RoomTypeService
 
@@ -24,15 +24,24 @@ ServiceDep = Annotated[RoomTypeService, Depends(get_service)]
     response_model=RoomTypeResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Создать категорию номера",
-    responses=error_responses(400),
+    responses=error_responses(409),
 )
 def create_room_type(data: RoomTypeCreate, service: ServiceDep):
+    """Создать категорию номера. Название должно быть уникальным, иначе 409."""
     return service.create(data)
 
 
-@router.get("", response_model=list[RoomTypeResponse], summary="Список категорий")
-def list_room_types(service: ServiceDep, page: PaginationDep):
-    return service.list(skip=page.skip, limit=page.limit)
+@router.get(
+    "",
+    response_model=Page[RoomTypeResponse],
+    summary="Список категорий",
+    responses=error_responses(400),
+)
+def list_room_types(service: ServiceDep, page: PaginationDep, sort: SortingDep):
+    """Список категорий с пагинацией и сортировкой.
+
+    Поля сортировки: id, name, capacity, price_per_night."""
+    return service.get_many(page, sort)
 
 
 @router.get(
@@ -42,6 +51,7 @@ def list_room_types(service: ServiceDep, page: PaginationDep):
     responses=error_responses(404),
 )
 def get_room_type(room_type_id: int, service: ServiceDep):
+    """Получить категорию по id."""
     return service.get(room_type_id)
 
 
@@ -49,9 +59,10 @@ def get_room_type(room_type_id: int, service: ServiceDep):
     "/{room_type_id}",
     response_model=RoomTypeResponse,
     summary="Полностью заменить категорию",
-    responses=error_responses(400, 404),
+    responses=error_responses(404, 409),
 )
 def replace_room_type(room_type_id: int, data: RoomTypeCreate, service: ServiceDep):
+    """Полностью заменить категорию: неприсланные поля получают значения по умолчанию."""
     return service.update(room_type_id, data, partial=False)
 
 
@@ -59,9 +70,10 @@ def replace_room_type(room_type_id: int, data: RoomTypeCreate, service: ServiceD
     "/{room_type_id}",
     response_model=RoomTypeResponse,
     summary="Изменить отдельные поля категории",
-    responses=error_responses(400, 404),
+    responses=error_responses(404, 409),
 )
 def update_room_type(room_type_id: int, data: RoomTypeUpdate, service: ServiceDep):
+    """Изменить только присланные поля категории."""
     return service.update(room_type_id, data, partial=True)
 
 

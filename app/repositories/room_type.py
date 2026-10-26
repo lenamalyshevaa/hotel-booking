@@ -6,6 +6,7 @@ from app.repositories.base import BaseRepository
 
 class RoomTypeRepository(BaseRepository[RoomType]):
     model = RoomType
+    sort_fields = frozenset({"id", "name", "capacity", "price_per_night"})
 
     def get_by_name(self, name: str) -> RoomType | None:
         return self.db.scalar(select(RoomType).where(RoomType.name == name))

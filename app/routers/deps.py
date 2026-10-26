@@ -1,20 +1,23 @@
-from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, Query
 
-
-@dataclass
-class Pagination:
-    skip: int
-    limit: int
+from app.schemas.common import Pagination, Sorting
 
 
 def pagination(
-    skip: Annotated[int, Query(ge=0, description="Сколько записей пропустить")] = 0,
-    limit: Annotated[int, Query(ge=1, le=100, description="Сколько записей вернуть")] = 20,
+    page: Annotated[int, Query(ge=1, description="Номер страницы")] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100, description="Записей на странице")] = 10,
 ) -> Pagination:
-    return Pagination(skip=skip, limit=limit)
+    return Pagination(page=page, per_page=per_page)
+
+
+def sorting(
+    sort_by: Annotated[str, Query(description="Поле сортировки")] = "id",
+    sort_order: Annotated[Literal["asc", "desc"], Query(description="Порядок: asc или desc")] = "asc",
+) -> Sorting:
+    return Sorting(sort_by=sort_by, sort_order=sort_order)
 
 
 PaginationDep = Annotated[Pagination, Depends(pagination)]
+SortingDep = Annotated[Sorting, Depends(sorting)]

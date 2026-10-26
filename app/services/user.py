@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
 
-from app.core.errors import BadRequestError, ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.models import User, UserRole
 from app.repositories.user import UserRepository
+from app.schemas.common import Pagination, Sorting, make_page
 from app.schemas.user import UserCreate, UserUpdate
 
 
@@ -12,8 +13,15 @@ class UserService:
         self.db = db
         self.repo = UserRepository(db)
 
-    def list(self, *, skip: int, limit: int, role: UserRole | None = None) -> list[User]:
-        return self.repo.list_filtered(skip=skip, limit=limit, role=role)
+    def get_many(self, page: Pagination, sort: Sorting, *, role: UserRole | None = None) -> dict:
+        items, total = self.repo.list_filtered(
+            offset=page.offset,
+            limit=page.per_page,
+            sort_by=sort.sort_by,
+            sort_order=sort.sort_order,
+            role=role,
+        )
+        return make_page(items, total, page)
 
     def get(self, user_id: int) -> User:
         user = self.repo.get(user_id)
@@ -49,4 +57,4 @@ class UserService:
 
     def _ensure_email_free(self, email: str) -> None:
         if self.repo.get_by_email(email) is not None:
-            raise BadRequestError(f"Email '{email}' is already registered")
+            raise ConflictError(f"Email '{email}' is already registered", field="email")

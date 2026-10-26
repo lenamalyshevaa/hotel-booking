@@ -1,9 +1,10 @@
 from collections.abc import Sequence
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 
+from app.core.errors import BadRequestError
 from app.database import Base
 
 ModelT = TypeVar("ModelT", bound=Base)
@@ -11,6 +12,7 @@ ModelT = TypeVar("ModelT", bound=Base)
 
 class BaseRepository(Generic[ModelT]):
     model: type[ModelT]
+    sort_fields: frozenset[str] = frozenset({"id"})
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -18,22 +20,33 @@ class BaseRepository(Generic[ModelT]):
     def get(self, obj_id: int) -> ModelT | None:
         return self.db.get(self.model, obj_id)
 
-    def list(
+    def get_many(
         self,
         *,
-        skip: int = 0,
-        limit: int = 20,
+        offset: int,
+        limit: int,
+        sort_by: str = "id",
+        sort_order: str = "asc",
         filters: Sequence[ColumnElement[bool]] = (),
-        order_by: Any = None,
-    ) -> list[ModelT]:
-        stmt = (
-            select(self.model)
-            .where(*filters)
-            .order_by(order_by if order_by is not None else self.model.id)
-            .offset(skip)
-            .limit(limit)
+    ) -> tuple[list[ModelT], int]:
+        if sort_by not in self.sort_fields:
+            allowed = ", ".join(sorted(self.sort_fields))
+            raise BadRequestError(
+                f"Invalid sort field: {sort_by}. Allowed: {allowed}", field="sort_by"
+            )
+        sort_columns = self.sort_columns(sort_by)
+        if sort_order == "desc":
+            sort_columns = [column.desc() for column in sort_columns]
+
+        stmt = select(self.model).where(*filters)
+        total = self.db.scalar(select(func.count()).select_from(stmt.subquery()))
+        items = self.db.scalars(
+            stmt.order_by(*sort_columns, self.model.id).offset(offset).limit(limit)
         )
-        return list(self.db.scalars(stmt))
+        return list(items), total
+
+    def sort_columns(self, sort_by: str) -> list:
+        return [getattr(self.model, sort_by)]
 
     def add(self, obj: ModelT) -> ModelT:
         self.db.add(obj)
