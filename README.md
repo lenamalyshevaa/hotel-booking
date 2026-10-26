@@ -21,7 +21,7 @@ ER-диаграмма: [docs/er/er-diagram.png](docs/er/er-diagram.png)
 
 - [x] Этап 1. ТЗ, ER-модель, SQL-схема
 - [x] Этап 2. Каркас backend: конфигурация, пул соединений, ORM-модели, миграции, тестовые данные
-- [ ] Этап 3. CRUD API, Swagger, Postman-коллекция
+- [x] Этап 3. CRUD API, Swagger, Postman-коллекция
 - [ ] Этап 4. Бизнес-логика: поиск свободных номеров, брони и статусы, JWT и роли, отчёты
 - [ ] Этап 5. WebSocket-уведомления, тесты
 - [ ] Этап 6. Тесты устойчивости, CI, нагрузочный тест
@@ -36,11 +36,14 @@ hotel-booking/
 │   ├── database.py        engine с пулом соединений, сессии, get_db()
 │   ├── seed.py            тестовые данные через ORM
 │   ├── core/security.py   хэширование паролей (bcrypt)
+│   ├── core/errors.py     ошибки предметной области (400, 404, 409)
 │   ├── models/            ORM-модели: users, room_types, rooms, bookings, booking_rooms, payments
-│   ├── schemas/           Pydantic-схемы (этап 3)
-│   ├── routers/           HTTP-эндпоинты
-│   └── services/          бизнес-логика (этап 4)
+│   ├── schemas/           Pydantic-схемы: что API принимает и что возвращает
+│   ├── routers/           HTTP-эндпоинты (контроллеры)
+│   ├── services/          бизнес-логика и транзакции
+│   └── repositories/      запросы к БД через ORM
 ├── alembic/versions/      миграции схемы БД
+├── postman/               Postman-коллекция с тестами всех эндпоинтов
 ├── docs/
 │   ├── TZ.md              техническое задание
 │   ├── er/                ER-диаграмма (PNG, SVG, исходники Graphviz и DBML)
@@ -101,6 +104,35 @@ docker compose exec api python -m app.seed      # тестовые данные
 ```
 
 PostgreSQL из Docker проброшен на порт **5433**, чтобы не конфликтовать с локальной установкой. Подключиться к нему из DBeaver/pgAdmin: `localhost:5433`, база `hotel_booking`, пользователь и пароль `hotel`.
+
+### API
+
+Полная документация с возможностью отправлять запросы: http://localhost:8000/docs
+
+| Ресурс | Эндпоинты |
+| --- | --- |
+| Категории номеров | `POST /room-types`, `GET /room-types`, `GET /room-types/{id}`, `PUT /room-types/{id}`, `PATCH /room-types/{id}`, `DELETE /room-types/{id}` |
+| Номера | `POST /rooms`, `GET /rooms`, `GET /rooms/{id}`, `PUT /rooms/{id}`, `PATCH /rooms/{id}`, `DELETE /rooms/{id}` |
+| Пользователи | `POST /users`, `GET /users`, `GET /users/{id}`, `PUT /users/{id}`, `PATCH /users/{id}`, `DELETE /users/{id}` |
+| Служебные | `GET /`, `GET /health` |
+
+Списки поддерживают пагинацию `skip` и `limit` (не больше 100), номера фильтруются по `room_type_id`, `status` и `floor`, пользователи по `role`. PUT заменяет объект целиком, PATCH меняет только присланные поля.
+
+Код устроен по слоям Controller → Service → Repository: роутер принимает HTTP-запрос и проверяет формат данных, сервис применяет бизнес-правила и управляет транзакцией, репозиторий выполняет запросы к БД.
+
+| Код | Когда |
+| --- | --- |
+| 200, 201, 204 | Успешное чтение или изменение, создание, удаление |
+| 400 | Нарушено бизнес-правило: занятое название, номер или email, несуществующая категория |
+| 404 | Объект с таким id не найден |
+| 409 | Удаление нарушит целостность: у категории есть номера, у номера или пользователя есть брони |
+| 422 | Данные не прошли проверку схемы: неверный тип, пустое поле, отрицательная цена, некорректный email |
+
+#### Postman
+
+Коллекция `postman/HotelBooking.postman_collection.json`: 34 запроса с проверками, включая граничные случаи и ошибки. Импорт: Postman → Import → выбрать файл, затем Run collection. Запросы выполняются по порядку, созданные объекты удаляются в конце, поэтому коллекцию можно прогонять сколько угодно раз. Нужны запущенный сервер и тестовые данные.
+
+Из командной строки: `npx newman run postman/HotelBooking.postman_collection.json`
 
 ### Тестовые пользователи
 
