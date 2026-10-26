@@ -1,0 +1,981 @@
+{
+  "info": {
+    "name": "HotelBooking API",
+    "description": "CRUD API HotelBooking: категории номеров, номера, пользователи.\n\nПеред запуском: сервер на {{baseUrl}} и тестовые данные (python -m app.seed). Запросы выполняются по порядку (Run collection): созданные объекты передаются дальше через переменные коллекции и удаляются в конце.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "suffix",
+      "value": ""
+    },
+    {
+      "key": "roomTypeId",
+      "value": ""
+    },
+    {
+      "key": "roomId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Служебные",
+      "item": [
+        {
+          "name": "Проверка API и БД",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"БД доступна\", () => pm.expect(pm.response.json().database).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Категории номеров",
+      "item": [
+        {
+          "name": "Создать категорию",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тестовая {{suffix}}\",\n  \"capacity\": 2,\n  \"price_per_night\": 2999.99,\n  \"description\": \"Создано из Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"suffix\", Date.now().toString().slice(-6));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Есть id\", () => pm.expect(body.id).to.be.a(\"number\"));",
+                  "pm.test(\"Цена хранится с копейками\", () => pm.expect(body.price_per_night).to.eql(\"2999.99\"));",
+                  "pm.collectionVariables.set(\"roomTypeId\", body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Дубль названия",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тестовая {{suffix}}\",\n  \"capacity\": 2,\n  \"price_per_night\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"detail: already exists\", () => pm.expect(pm.response.json().detail).to.include(\"already exists\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Невалидные данные",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"capacity\": 0,\n  \"price_per_night\": -5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);",
+                  "pm.test(\"Три ошибки: name, capacity, price\", () => pm.expect(pm.response.json().detail).to.have.lengthOf(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Список с пагинацией",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types?skip=0&limit=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Не больше limit записей\", () => pm.expect(pm.response.json()).to.be.an(\"array\").with.length.at.most(5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limit больше 100",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types?limit=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Категория по id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Тот самый id\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"roomTypeId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Несуществующая категория",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"detail: not found\", () => pm.expect(pm.response.json().detail).to.include(\"not found\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT: полная замена",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тестовая {{suffix}} PUT\",\n  \"capacity\": 3,\n  \"price_per_night\": 3100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Поля заменены\", () => { pm.expect(body.capacity).to.eql(3); pm.expect(body.price_per_night).to.eql(\"3100.00\"); });",
+                  "pm.test(\"Неприсланное описание сброшено в null\", () => pm.expect(body.description).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH: одно поле",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Изменено через PATCH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Описание изменено\", () => pm.expect(body.description).to.eql(\"Изменено через PATCH\"));",
+                  "pm.test(\"Остальные поля не тронуты\", () => pm.expect(body.capacity).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH: null в обязательное поле",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Номера",
+      "item": [
+        {
+          "name": "Создать номер",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rooms",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"T{{suffix}}\",\n  \"floor\": 9,\n  \"room_type_id\": {{roomTypeId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Категория вложена в ответ\", () => pm.expect(body.room_type.id).to.eql(Number(pm.collectionVariables.get(\"roomTypeId\"))));",
+                  "pm.test(\"Статус по умолчанию available\", () => pm.expect(body.status).to.eql(\"available\"));",
+                  "pm.collectionVariables.set(\"roomId\", body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Дубль номера",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rooms",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"T{{suffix}}\",\n  \"floor\": 9,\n  \"room_type_id\": {{roomTypeId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"detail: already exists\", () => pm.expect(pm.response.json().detail).to.include(\"already exists\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Несуществующая категория",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rooms",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"X{{suffix}}\",\n  \"floor\": 9,\n  \"room_type_id\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"detail: does not exist\", () => pm.expect(pm.response.json().detail).to.include(\"does not exist\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Список с фильтрами",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms?floor=9&room_type_id={{roomTypeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const rooms = pm.response.json();",
+                  "pm.test(\"Все номера на 9 этаже\", () => rooms.forEach(r => pm.expect(r.floor).to.eql(9)));",
+                  "pm.test(\"Созданный номер в списке\", () => pm.expect(rooms.map(r => r.id)).to.include(Number(pm.collectionVariables.get(\"roomId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Фильтр с неверным статусом",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms?status=broken"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Номер по id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms/{{roomId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH: вывести на ремонт",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rooms/{{roomId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"maintenance\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Статус maintenance\", () => pm.expect(pm.response.json().status).to.eql(\"maintenance\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT: полная замена",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/rooms/{{roomId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"T{{suffix}}\",\n  \"floor\": 10,\n  \"room_type_id\": {{roomTypeId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Этаж заменён\", () => pm.expect(body.floor).to.eql(10));",
+                  "pm.test(\"Неприсланный статус вернулся к значению по умолчанию\", () => pm.expect(body.status).to.eql(\"available\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить категорию, у которой есть номер",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"detail: has rooms\", () => pm.expect(pm.response.json().detail).to.include(\"has rooms\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить номер с бронями (номер 101 из тестовых данных)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/rooms/1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"detail: has bookings\", () => pm.expect(pm.response.json().detail).to.include(\"has bookings\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить номер",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/rooms/{{roomId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалённый номер не найден",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms/{{roomId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить категорию",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/room-types/{{roomTypeId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Пользователи",
+      "item": [
+        {
+          "name": "Создать пользователя",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"Postman.{{suffix}}@Mail.RU\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"Тестовый Пользователь\",\n  \"phone\": \"+7-900-000-00-00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Email приведён к нижнему регистру\", () => pm.expect(body.email).to.eql(`postman.${pm.collectionVariables.get(\"suffix\")}@mail.ru`));",
+                  "pm.test(\"Ни пароля, ни хэша в ответе\", () => { pm.expect(body).to.not.have.property(\"password\"); pm.expect(body).to.not.have.property(\"password_hash\"); });",
+                  "pm.test(\"Роль по умолчанию guest\", () => pm.expect(body.role).to.eql(\"guest\"));",
+                  "pm.collectionVariables.set(\"userId\", body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Дубль email в другом регистре",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"POSTMAN.{{suffix}}@mail.ru\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"Дубль\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"detail: already registered\", () => pm.expect(pm.response.json().detail).to.include(\"already registered\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Невалидные данные",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"123\",\n  \"full_name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Список с фильтром по роли",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users?role=guest&limit=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Только гости\", () => pm.response.json().forEach(u => pm.expect(u.role).to.eql(\"guest\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Пользователь по id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Хэш пароля не отдаётся\", () => pm.expect(pm.response.json()).to.not.have.property(\"password_hash\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH: роль и сброс телефона",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\",\n  \"phone\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Роль admin\", () => pm.expect(body.role).to.eql(\"admin\"));",
+                  "pm.test(\"Телефон сброшен\", () => pm.expect(body.phone).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT: полная замена",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.{{suffix}}@mail.ru\",\n  \"password\": \"NewPassword456!\",\n  \"full_name\": \"Заменённый Пользователь\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Имя заменено\", () => pm.expect(body.full_name).to.eql(\"Заменённый Пользователь\"));",
+                  "pm.test(\"Роль вернулась к guest\", () => pm.expect(body.role).to.eql(\"guest\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить пользователя с бронями (Иван Иванов из тестовых данных)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/users/4"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"detail: has bookings\", () => pm.expect(pm.response.json().detail).to.include(\"has bookings\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить пользователя",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалённый пользователь не найден",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
