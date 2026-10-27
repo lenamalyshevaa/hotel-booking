@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
@@ -22,6 +24,9 @@ class RoomService:
         room_type_id: int | None = None,
         status: RoomStatus | None = None,
         floor: int | None = None,
+        min_capacity: int | None = None,
+        max_price: Decimal | None = None,
+        search: str | None = None,
     ) -> dict:
         items, total = self.repo.list_filtered(
             offset=page.offset,
@@ -31,6 +36,9 @@ class RoomService:
             room_type_id=room_type_id,
             status=status,
             floor=floor,
+            min_capacity=min_capacity,
+            max_price=max_price,
+            search=search,
         )
         return make_page(items, total, page)
 

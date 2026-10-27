@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "HotelBooking API",
-    "description": "CRUD API HotelBooking: категории номеров, номера, пользователи. Пагинация page/per_page с метаданными, сортировка sort_by/sort_order, единый формат ошибок с error_code.\n\nПеред запуском: сервер на {{baseUrl}} и тестовые данные (python -m app.seed). Запросы выполняются по порядку (Run collection): созданные объекты передаются дальше через переменные коллекции и удаляются в конце.",
+    "description": "CRUD API HotelBooking: категории номеров, номера, пользователи. Пагинация page/per_page с метаданными, сортировка sort_by/sort_order, фильтры и поиск, единый формат ошибок с error_code.\n\nПеред запуском: сервер на {{baseUrl}} и тестовые данные (python -m app.seed). Запросы выполняются по порядку (Run collection): созданные объекты передаются дальше через переменные коллекции и удаляются в конце.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -191,6 +191,71 @@
                   "pm.test(\"total_pages посчитан верно\", () => pm.expect(body.total_pages).to.eql(Math.ceil(body.total / body.per_page)));",
                   "pm.test(\"Не больше per_page записей\", () => pm.expect(body.items).to.be.an(\"array\").with.length.at.most(5));",
                   "pm.test(\"Первая страница\", () => pm.expect(body.page).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Фильтр по вместимости и цене",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types?min_capacity=3&max_price=7000&per_page=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test(\"Есть подходящие категории\", () => pm.expect(items).to.not.be.empty);",
+                  "pm.test(\"Вместимость не меньше 3\", () => items.forEach(r => pm.expect(r.capacity).to.be.at.least(3)));",
+                  "pm.test(\"Цена не больше 7000\", () => items.forEach(r => pm.expect(Number(r.price_per_night)).to.be.at.most(7000)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Поиск по названию",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types?search={{suffix}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Найдена ровно созданная категория\", () => { pm.expect(body.total).to.eql(1); pm.expect(body.items[0].id).to.eql(Number(pm.collectionVariables.get(\"roomTypeId\"))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "min_price больше max_price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/room-types?min_price=5000&max_price=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error_code: VALIDATION_ERROR\", () => pm.expect(pm.response.json().error_code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"field: min_price\", () => pm.expect(pm.response.json().field).to.eql(\"min_price\"));"
                 ]
               }
             }
@@ -536,6 +601,53 @@
                   "const rooms = pm.response.json().items;",
                   "pm.test(\"Все номера на 9 этаже\", () => rooms.forEach(r => pm.expect(r.floor).to.eql(9)));",
                   "pm.test(\"Созданный номер в списке\", () => pm.expect(rooms.map(r => r.id)).to.include(Number(pm.collectionVariables.get(\"roomId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Фильтр по связи с категорией",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms?min_capacity=4&per_page=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test(\"Есть подходящие номера\", () => pm.expect(items).to.not.be.empty);",
+                  "pm.test(\"Вместимость категории не меньше 4\", () => items.forEach(r => pm.expect(r.room_type.capacity).to.be.at.least(4)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Поиск вместе с фильтром и сортировкой",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/rooms?search=40&status=available&sort_by=number&sort_order=desc&per_page=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test(\"Есть подходящие номера\", () => pm.expect(items).to.not.be.empty);",
+                  "pm.test(\"В номере есть «40»\", () => items.forEach(r => pm.expect(r.number).to.include(\"40\")));",
+                  "pm.test(\"Только свободные для продажи\", () => items.forEach(r => pm.expect(r.status).to.eql(\"available\")));",
+                  "const numbers = items.map(r => r.number);",
+                  "pm.test(\"Номера идут по убыванию\", () => pm.expect(numbers).to.eql([...numbers].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))));"
                 ]
               }
             }
@@ -902,6 +1014,90 @@
                 "exec": [
                   "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Только гости\", () => pm.response.json().items.forEach(u => pm.expect(u.role).to.eql(\"guest\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Поиск без учёта регистра",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users?search=IVANOV"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const emails = pm.response.json().items.map(u => u.email);",
+                  "pm.test(\"Найден ivanov@mail.ru\", () => pm.expect(emails).to.include(\"ivanov@mail.ru\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Фильтр по связи: пользователи без броней",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users?has_bookings=false&per_page=100"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 200\", () => pm.response.to.have.status(200));",
+                  "const emails = pm.response.json().items.map(u => u.email);",
+                  "pm.test(\"Персонал без броней в списке\", () => pm.expect(emails).to.include(\"manager@hotel.ru\"));",
+                  "pm.test(\"Гостя с бронями нет\", () => pm.expect(emails).to.not.include(\"ivanov@mail.ru\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Поиск короче 2 символов",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users?search=a"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Ошибка валидации в формате FastAPI\", () => pm.expect(pm.response.json().detail).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "created_from больше created_to",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users?created_from=2026-12-31&created_to=2026-01-01"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error_code: VALIDATION_ERROR\", () => pm.expect(pm.response.json().error_code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"field: created_from\", () => pm.expect(pm.response.json().field).to.eql(\"created_from\"));"
                 ]
               }
             }

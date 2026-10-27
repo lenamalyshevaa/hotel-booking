@@ -13,6 +13,11 @@ class BadRequestError(AppError):
     error_code = "VALIDATION_ERROR"
 
 
+def check_range(low, high, low_field: str, high_field: str) -> None:
+    if low is not None and high is not None and low > high:
+        raise BadRequestError(f"{low_field} cannot be greater than {high_field}", field=low_field)
+
+
 class NotFoundError(AppError):
     status_code = 404
     error_code = "NOT_FOUND"

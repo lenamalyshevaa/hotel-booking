@@ -1,13 +1,19 @@
 from collections.abc import Sequence
 from typing import Generic, TypeVar
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import BadRequestError
 from app.database import Base
 
 ModelT = TypeVar("ModelT", bound=Base)
+
+
+def search_condition(search: str, *columns) -> ColumnElement[bool]:
+    escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    return or_(*(column.ilike(pattern, escape="\\") for column in columns))
 
 
 class BaseRepository(Generic[ModelT]):

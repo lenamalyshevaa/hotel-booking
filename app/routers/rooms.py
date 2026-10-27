@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import RoomStatus
-from app.routers.deps import PaginationDep, SortingDep
+from app.routers.deps import PaginationDep, SearchQuery, SortingDep
 from app.schemas.common import Page, error_responses
 from app.schemas.room import RoomCreate, RoomResponse, RoomUpdate
 from app.services.room import RoomService
@@ -47,11 +48,27 @@ def list_rooms(
         RoomStatus | None, Query(alias="status", description="Фильтр по состоянию")
     ] = None,
     floor: Annotated[int | None, Query(description="Фильтр по этажу")] = None,
+    min_capacity: Annotated[
+        int | None, Query(ge=1, description="Вместимость категории не меньше")
+    ] = None,
+    max_price: Annotated[
+        Decimal | None, Query(ge=0, description="Цена категории за ночь до")
+    ] = None,
+    search: SearchQuery = None,
 ):
-    """Номерной фонд с пагинацией, сортировкой и фильтрами.
+    """Номерной фонд с фильтрами, поиском, сортировкой и пагинацией.
 
-    Поля сортировки: id, number, floor, status."""
-    return service.get_many(page, sort, room_type_id=room_type_id, status=room_status, floor=floor)
+    Поиск по номеру и названию категории. Поля сортировки: id, number, floor, status."""
+    return service.get_many(
+        page,
+        sort,
+        room_type_id=room_type_id,
+        status=room_status,
+        floor=floor,
+        min_capacity=min_capacity,
+        max_price=max_price,
+        search=search,
+    )
 
 
 @router.get(

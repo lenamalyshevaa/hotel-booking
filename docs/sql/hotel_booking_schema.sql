@@ -10,6 +10,7 @@
 
 -- Расширение для exclusion constraint (защита от двойного бронирования)
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Перечисления
 CREATE TYPE user_role      AS ENUM ('guest', 'admin', 'manager');
@@ -126,6 +127,15 @@ CREATE INDEX idx_bookings_dates          ON bookings(check_in, check_out);
 CREATE INDEX idx_booking_rooms_booking   ON booking_rooms(booking_id);
 CREATE INDEX idx_booking_rooms_room      ON booking_rooms(room_id);
 CREATE INDEX idx_payments_booking_id     ON payments(booking_id);
+CREATE INDEX idx_payments_paid_at        ON payments(paid_at);
+CREATE INDEX idx_rooms_status            ON rooms(status);
+CREATE INDEX idx_rooms_floor             ON rooms(floor);
+CREATE INDEX idx_room_types_price        ON room_types(price_per_night);
+CREATE INDEX idx_users_role              ON users(role);
+CREATE INDEX idx_users_created_at        ON users(created_at);
+CREATE INDEX idx_users_full_name_trgm    ON users USING gin (full_name gin_trgm_ops);
+CREATE INDEX idx_users_email_trgm        ON users USING gin (email gin_trgm_ops);
+CREATE INDEX idx_room_types_name_trgm    ON room_types USING gin (name gin_trgm_ops);
 
 -- Тестовые данные (DML)
 INSERT INTO users (email, password_hash, full_name, phone, role) VALUES

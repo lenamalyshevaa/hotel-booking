@@ -22,7 +22,7 @@ class Payment(Base):
     booking_id: Mapped[int] = mapped_column(ForeignKey("bookings.id"), index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     paid_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), server_default=func.now(), index=True
     )
     method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod, name="payment_method"))
 

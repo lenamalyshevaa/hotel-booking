@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import UserRole
-from app.routers.deps import PaginationDep, SortingDep
+from app.routers.deps import PaginationDep, SearchQuery, SortingDep
 from app.schemas.common import Page, error_responses
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.services.user import UserService
@@ -43,11 +44,23 @@ def list_users(
     page: PaginationDep,
     sort: SortingDep,
     role: Annotated[UserRole | None, Query(description="Фильтр по роли")] = None,
+    created_from: Annotated[date | None, Query(description="Зарегистрирован не раньше")] = None,
+    created_to: Annotated[date | None, Query(description="Зарегистрирован не позже")] = None,
+    has_bookings: Annotated[bool | None, Query(description="Есть ли у пользователя брони")] = None,
+    search: SearchQuery = None,
 ):
-    """Список пользователей с пагинацией, сортировкой и фильтром по роли.
+    """Список пользователей с фильтрами, поиском, сортировкой и пагинацией.
 
-    Поля сортировки: id, email, full_name, created_at."""
-    return service.get_many(page, sort, role=role)
+    Поиск по ФИО, email и телефону. Поля сортировки: id, email, full_name, created_at."""
+    return service.get_many(
+        page,
+        sort,
+        role=role,
+        created_from=created_from,
+        created_to=created_to,
+        has_bookings=has_bookings,
+        search=search,
+    )
 
 
 @router.get(

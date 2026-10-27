@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError, check_range
 from app.models import RoomType
 from app.repositories.room_type import RoomTypeRepository
 from app.schemas.common import Pagination, Sorting, make_page
@@ -12,9 +14,26 @@ class RoomTypeService:
         self.db = db
         self.repo = RoomTypeRepository(db)
 
-    def get_many(self, page: Pagination, sort: Sorting) -> dict:
-        items, total = self.repo.get_many(
-            offset=page.offset, limit=page.per_page, sort_by=sort.sort_by, sort_order=sort.sort_order
+    def get_many(
+        self,
+        page: Pagination,
+        sort: Sorting,
+        *,
+        min_capacity: int | None = None,
+        min_price: Decimal | None = None,
+        max_price: Decimal | None = None,
+        search: str | None = None,
+    ) -> dict:
+        check_range(min_price, max_price, "min_price", "max_price")
+        items, total = self.repo.list_filtered(
+            offset=page.offset,
+            limit=page.per_page,
+            sort_by=sort.sort_by,
+            sort_order=sort.sort_order,
+            min_capacity=min_capacity,
+            min_price=min_price,
+            max_price=max_price,
+            search=search,
         )
         return make_page(items, total, page)
 

@@ -18,12 +18,13 @@ class Room(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     number: Mapped[str] = mapped_column(String(10), unique=True)
-    floor: Mapped[int]
+    floor: Mapped[int] = mapped_column(index=True)
     room_type_id: Mapped[int] = mapped_column(ForeignKey("room_types.id"), index=True)
     status: Mapped[RoomStatus] = mapped_column(
         Enum(RoomStatus, name="room_status"),
         default=RoomStatus.available,
         server_default=RoomStatus.available.value,
+        index=True,
     )
 
     # Категория нужна почти всегда (цена, вместимость), поэтому

@@ -21,3 +21,7 @@ def sorting(
 
 PaginationDep = Annotated[Pagination, Depends(pagination)]
 SortingDep = Annotated[Sorting, Depends(sorting)]
+SearchQuery = Annotated[
+    str | None,
+    Query(min_length=2, max_length=100, description="Поиск по подстроке без учёта регистра"),
+]

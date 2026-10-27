@@ -1,6 +1,8 @@
+from datetime import date
+
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError, check_range
 from app.core.security import hash_password
 from app.models import User, UserRole
 from app.repositories.user import UserRepository
@@ -13,13 +15,28 @@ class UserService:
         self.db = db
         self.repo = UserRepository(db)
 
-    def get_many(self, page: Pagination, sort: Sorting, *, role: UserRole | None = None) -> dict:
+    def get_many(
+        self,
+        page: Pagination,
+        sort: Sorting,
+        *,
+        role: UserRole | None = None,
+        created_from: date | None = None,
+        created_to: date | None = None,
+        has_bookings: bool | None = None,
+        search: str | None = None,
+    ) -> dict:
+        check_range(created_from, created_to, "created_from", "created_to")
         items, total = self.repo.list_filtered(
             offset=page.offset,
             limit=page.per_page,
             sort_by=sort.sort_by,
             sort_order=sort.sort_order,
             role=role,
+            created_from=created_from,
+            created_to=created_to,
+            has_bookings=has_bookings,
+            search=search,
         )
         return make_page(items, total, page)
 

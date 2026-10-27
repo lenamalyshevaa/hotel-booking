@@ -1,10 +1,11 @@
+from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.deps import PaginationDep, SortingDep
+from app.routers.deps import PaginationDep, SearchQuery, SortingDep
 from app.schemas.common import Page, error_responses
 from app.schemas.room_type import RoomTypeCreate, RoomTypeResponse, RoomTypeUpdate
 from app.services.room_type import RoomTypeService
@@ -37,11 +38,26 @@ def create_room_type(data: RoomTypeCreate, service: ServiceDep):
     summary="Список категорий",
     responses=error_responses(400),
 )
-def list_room_types(service: ServiceDep, page: PaginationDep, sort: SortingDep):
-    """Список категорий с пагинацией и сортировкой.
+def list_room_types(
+    service: ServiceDep,
+    page: PaginationDep,
+    sort: SortingDep,
+    min_capacity: Annotated[int | None, Query(ge=1, description="Вместимость не меньше")] = None,
+    min_price: Annotated[Decimal | None, Query(ge=0, description="Цена за ночь от")] = None,
+    max_price: Annotated[Decimal | None, Query(ge=0, description="Цена за ночь до")] = None,
+    search: SearchQuery = None,
+):
+    """Список категорий с фильтрами, поиском, сортировкой и пагинацией.
 
-    Поля сортировки: id, name, capacity, price_per_night."""
-    return service.get_many(page, sort)
+    Поиск по названию и описанию. Поля сортировки: id, name, capacity, price_per_night."""
+    return service.get_many(
+        page,
+        sort,
+        min_capacity=min_capacity,
+        min_price=min_price,
+        max_price=max_price,
+        search=search,
+    )
 
 
 @router.get(
