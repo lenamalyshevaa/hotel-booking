@@ -114,6 +114,7 @@ PostgreSQL из Docker проброшен на порт **5433**, чтобы н�
 | Категории номеров | `POST /room-types`, `GET /room-types`, `GET /room-types/{id}`, `PUT /room-types/{id}`, `PATCH /room-types/{id}`, `DELETE /room-types/{id}` |
 | Номера | `POST /rooms`, `GET /rooms`, `GET /rooms/{id}`, `PUT /rooms/{id}`, `PATCH /rooms/{id}`, `DELETE /rooms/{id}` |
 | Пользователи | `POST /users`, `GET /users`, `GET /users/{id}`, `PUT /users/{id}`, `PATCH /users/{id}`, `DELETE /users/{id}` |
+| Статистика и отчёты | `GET /stats/rooms`, `GET /stats/bookings`, `GET /reports/revenue-by-month` |
 | Служебные | `GET /`, `GET /health` |
 
 Списки поддерживают пагинацию `page` и `per_page` (не больше 100) и сортировку `sort_by` и `sort_order` (`asc` или `desc`) по белому списку полей. PUT заменяет объект целиком, PATCH меняет только присланные поля.
@@ -125,6 +126,12 @@ PostgreSQL из Docker проброшен на порт **5433**, чтобы н�
 | `/room-types` | `min_capacity`, `min_price`, `max_price` | название, описание |
 | `/rooms` | `room_type_id`, `status`, `floor`, `min_capacity` и `max_price` (по категории номера) | номер, название категории |
 | `/users` | `role`, `created_from`, `created_to`, `has_bookings` | ФИО, email, телефон |
+
+Статистика и отчёты:
+
+- `GET /stats/rooms`: всего номеров, средняя цена за ночь, число номеров по состояниям и по категориям;
+- `GET /stats/bookings`: всего броней, выручка и средняя стоимость без отменённых, средняя длительность, число и сумма броней по статусам;
+- `GET /reports/revenue-by-month?date_from=&date_to=`: сумма и количество оплат по месяцам за период.
 
 Для фильтров и поиска добавлены индексы (миграция `0002`): B-tree на поля фильтров и триграммные GIN-индексы `pg_trgm` на ФИО, email и название категории, чтобы ILIKE `%...%` не перебирал всю таблицу.
 
@@ -153,7 +160,7 @@ PostgreSQL из Docker проброшен на порт **5433**, чтобы н�
 
 #### Postman
 
-Коллекция `postman/HotelBooking.postman_collection.json`: 47 запросов с проверками: пагинация и метаданные, сортировка, фильтры и поиск, граничные случаи и ошибки. Импорт: Postman → Import → выбрать файл, затем Run collection. Запросы выполняются по порядку, созданные объекты удаляются в конце, поэтому коллекцию можно прогонять сколько угодно раз. Нужны запущенный сервер и тестовые данные.
+Коллекция `postman/HotelBooking.postman_collection.json`: 51 запрос с проверками: пагинация и метаданные, сортировка, фильтры и поиск, статистика и отчёт, граничные случаи и ошибки. Импорт: Postman → Import → выбрать файл, затем Run collection. Запросы выполняются по порядку, созданные объекты удаляются в конце, поэтому коллекцию можно прогонять сколько угодно раз. Нужны запущенный сервер и тестовые данные.
 
 Из командной строки: `npx newman run postman/HotelBooking.postman_collection.json`
 

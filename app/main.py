@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app import models  # noqa: F401
 from app.config import settings
 from app.core.errors import AppError
-from app.routers import health, room_types, rooms, users
+from app.routers import health, room_types, rooms, stats, users
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ app = FastAPI(
         {"name": "room-types", "description": "Категории номеров (справочник)"},
         {"name": "rooms", "description": "Номерной фонд"},
         {"name": "users", "description": "Пользователи: гости и персонал"},
+        {"name": "stats", "description": "Статистика и отчёты"},
         {"name": "service", "description": "Служебные эндпоинты"},
     ],
 )
@@ -62,4 +63,5 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
 app.include_router(room_types.router)
 app.include_router(rooms.router)
 app.include_router(users.router)
+app.include_router(stats.router)
 app.include_router(health.router)
